@@ -23,6 +23,7 @@
 
 		var _vars = {
 			_$this:this,
+			_resizer:null,
 			
 			_snaps:null,
 			_scrollTimeout:0,
@@ -35,8 +36,8 @@
 
 		var _methods = {
 			init:function(){
-				_methods.updateSnaps();
-				_methods.snapClosest();
+				_vars._resizer = new Resizer({onResize:_methods._handler_resize});
+				_methods._handler_resize(); //Call initially
 				
 				$(document).on("scroll", _methods._handler_document_scroll);
 				$(document).on("keydown", _methods._handler_document_keydown);
@@ -45,6 +46,10 @@
 			},
 
 			destory:function(){
+				if (_vars._resizer){
+					_vars._resizer.destroy();
+					_vars._resizer = null;
+				}
 				$(document).off("scroll", _methods._handler_document_scroll);
 				$(document).off("keydown", _methods._handler_document_keydown);
 				$(window).off("mousewheel", _methods._handler_window_mousewheel);
@@ -215,6 +220,11 @@
 						_methods.snapNext();
 						break;
 				}
+			},
+			
+			_handler_resize:function(width, height){
+				_methods.updateSnaps();
+				_methods.snapClosest();
 			}
 		};
 
@@ -232,5 +242,89 @@
 			updateSnaps:_methods.updateSnaps
 		}, defaults, options);
 		_instance.init();
+	};
+	
+	function Resizer(params){
+		var _instance = null;
+
+		var _vars = {
+			callbackDelay:300,      //Time in ms to wait before calling onResize
+
+			_lastOrientation:window.orientation,
+			_timeout:null,
+		};
+
+		var _methods = {
+			init:function(){
+				if (window.addEventListener){
+					window.addEventListener("resize", _methods._handler_resize, false);
+					window.addEventListener("orientationchange", _methods._handler_resize, false);
+				} else if (window.attachEvent){
+					window.attachEvent("onresize", _methods._handler_resize);
+					window.attachEvent("onorientationchange", _methods._handler_resize);
+				}
+			},
+
+			destroy:function(){
+				var timeout = _vars._timeout;
+				if (timeout){
+					clearTimeout(timeout);
+					_vars._timeout = null;
+				}
+				_instance.onResize = null;
+
+				if (window.removeEventListener){
+					window.removeEventListener("resize", _methods._handler_resize);
+					window.removeEventListener("orientationchange", _methods._handler_resize);
+				} else if (window.detachEvent){
+					window.detachEvent("onresize", _methods._handler_resize);
+					window.detachEvent("onorientationchange", _methods._handler_resize);
+				}
+			},
+
+			getWidth:function(){
+				return window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth;
+			},
+
+			getHeight:function(){
+				return window.innerHeight || document.documentElement.clientHeight || document.body.clientHeight;
+			},
+
+			_handler_resize:function(){
+				if ("onorientationchange" in window){
+					var orientation = window.orientation;
+					if (orientation != _vars._lastOrientation){
+						_vars._lastOrientation = orientation;
+					} else {
+						return;
+					}
+				}
+				var timeout = _vars._timeout;
+				if (timeout){
+					clearTimeout(timeout);
+					_vars._timeout = null;
+				}
+				_vars._timeout = setTimeout(function(){
+					clearTimeout(timeout);
+					_vars._timeout = null;
+					_instance.onResize(_instance.getWidth(), _instance.getHeight());
+				}, _instance.callbackDelay);
+			}
+		};
+
+		_instance = {
+			callbackDelay:_vars.callbackDelay,
+
+			init:_methods.init,
+			destroy:_methods.destroy,
+			getWidth:_methods.getWidth,
+			getHeight:_methods.getHeight,
+			onResize:null
+		};
+		for (var param in params){
+			_instance[param] = params[param];
+		}
+		_instance.init();
+		return _instance;
 	};
 })(jQuery);
