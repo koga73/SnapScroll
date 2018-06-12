@@ -1,7 +1,7 @@
 # SnapScroll
 Javascript library to snap to page sections while scrolling and with mouse wheel
 
-```
+```html
 <header>HEADER</header>
 <div>
 	<section>Section 1</section>
@@ -9,7 +9,9 @@ Javascript library to snap to page sections while scrolling and with mouse wheel
 	<section>Section 3</section>
 </div>
 <footer>FOOTER</footer>
+```
 
+```javascript
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
 <script src="js/snap-scroll.js"></script>
 <script>
