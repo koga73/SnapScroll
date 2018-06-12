@@ -10,10 +10,10 @@
 		var _instance = null;
 
 		var defaults = {
-			scrollDelay:300,	//ms
-			wheelDelay:150,		//ms
-			animateDelay:500,	//ms
-			animateTime:250,	//ms
+			scrollDelay:300,		//ms
+			wheelDelay:75,			//ms
+			animateTime:250,		//ms
+			animateTimeBuffer:100,	//ms
 			
 			snapTop:true,
 			snapBottom:true,
@@ -28,10 +28,9 @@
 			_snaps:null,
 			_scrollTimeout:0,
 			_wheelTimeout:0,
-			_animationTimeout:0,
 			_wheelDir:0,
 			_currentSnapIndex:-1,
-			_isAnimating:false
+			_lastAnimateTime:0
 		};
 
 		var _methods = {
@@ -41,8 +40,7 @@
 				
 				$(document).on("scroll", _methods._handler_document_scroll);
 				$(document).on("keydown", _methods._handler_document_keydown);
-				$(window).on("mousewheel", _methods._handler_window_mousewheel);
-				$(window).on("DOMMouseScroll", _methods._handler_window_mousewheel);
+				$(window).on("DOMMouseScroll mousewheel wheel", _methods._handler_window_mousewheel);
 			},
 
 			destory:function(){
@@ -52,8 +50,7 @@
 				}
 				$(document).off("scroll", _methods._handler_document_scroll);
 				$(document).off("keydown", _methods._handler_document_keydown);
-				$(window).off("mousewheel", _methods._handler_window_mousewheel);
-				$(window).off("DOMMouseScroll", _methods._handler_window_mousewheel);
+				$(window).off("DOMMouseScroll mousewheel wheel", _methods._handler_window_mousewheel);
 				
 				_vars._snaps = null;
 				if (_vars._scrollTimeout){
@@ -64,17 +61,13 @@
 					clearTimeout(_vars._wheelTimeout);
 					_vars._wheelTimeout = 0;
 				}
-				if (_vars._animateTimeout){
-					clearTimeout(_vars._animateTimeout);
-					_vars._animateTimeout = 0;
-				}
 				_vars._wheelDir = 0;
 				_vars._currentSnapIndex = -1;
-				_vars._isAnimating = false;
+				_vars._lastAnimateTime = 0;
 			},
 
 			snapClosest:function(){
-				var scrollPosition = window.scrollY;
+				var scrollPosition = document.documentElement.scrollTop;
 				var closestIndex = -1;
 				var closestDist = -1;
 				var snaps = _vars._snaps;
@@ -146,13 +139,11 @@
 			},
 			
 			_handler_document_scroll:function(evt){
-				if (_vars._isAnimating){
-					return;
-				}
 				if (_vars._scrollTimeout){
 					clearTimeout(_vars._scrollTimeout);
 				}
-				_vars._scrollTimeout = setTimeout(_methods._handler_scroll_timeout, _instance.scrollDelay);
+				var animateDelay = (_vars._lastAnimateTime + _instance.animateTime + _instance.animateTimeBuffer) - new Date().getTime();
+				_vars._scrollTimeout = setTimeout(_methods._handler_scroll_timeout, Math.max(_instance.scrollDelay, animateDelay));
 			},
 
 			_handler_scroll_timeout:function(){
@@ -163,32 +154,29 @@
 			},
 
 			_scrollTo:function(top){
-				_vars._isAnimating = true;
-
+				var scrollPosition = document.documentElement.scrollTop;
+				if (scrollPosition == top){
+					return;
+				}
+				_vars._lastAnimateTime = new Date().getTime();
+				
 				var $htmlBody = $("html,body");
 				$htmlBody.stop(true);
 				$htmlBody.animate({
 					scrollTop:top
-				}, _instance.animateTime, function(){
-					//Scroll event may fire AFTER complete
-					//https://bugs.jquery.com/ticket/14820
-					if (_vars._animateTimeout){
-						clearTimeout(_vars._animateTimeout);
-					}
-					_vars._animateTimeout = setTimeout(_methods._handler_animate_timeout, _instance.animateDelay);
-				});
+				}, _instance.animateTime);
 			},
 
 			_handler_window_mousewheel:function(evt){
 				evt.preventDefault();
-
+				
 				_vars._isAnimating = true;
 				if (_vars._wheelTimeout){
 					clearTimeout(_vars._wheelTimeout);
 				}
 				_vars._wheelTimeout = setTimeout(_methods._handler_wheel_timeout, _instance.wheelDelay);
 
-				var delta = evt.originalEvent.deltaY;
+				var delta = Math.max(-1, Math.min(1, (evt.originalEvent.deltaY || evt.originalEvent.wheelDelta || -evt.originalEvent.detail)));
 				_vars._wheelDir = Math.abs(delta) / delta;
 
 				return false;
@@ -203,12 +191,6 @@
 				} else if (_vars._wheelDir > 0){
 					_methods.snapNext();
 				}
-			},
-			
-			_handler_animate_timeout:function(){
-				clearTimeout(_vars._animateTimeout);
-				_vars._animateTimeout = 0;
-				_vars._isAnimating = false;
 			},
 
 			_handler_document_keydown:function(evt){
