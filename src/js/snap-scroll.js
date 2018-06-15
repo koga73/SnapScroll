@@ -10,12 +10,13 @@
 		//Public
 		var defaults = {
 			useClasses:true,
+			classSnap:"snap-scroll",
 			classVisible:"snap-scroll-visible",
 			classActive:"snap-scroll-active",
 
 			scrollDelay:300,		//ms
-			wheelDelay:75,			//ms
-			animateTime:250,		//ms
+			wheelInterval:450,		//ms
+			animateDuration:250,	//ms
 			animateTimeBuffer:100,	//ms
 
 			snapTop:true,
@@ -29,15 +30,18 @@
 			_resizer:null,
 
 			_snaps:null,
-			_scrollTimeout:0,
-			_wheelTimeout:0,
-			_wheelDir:0,
 			_currentSnapIndex:-1,
-			_lastAnimateTime:0
+			_scrollTimeout:0,
+			_wheelDir:0,
+			_lastWheelTime:0,
+			_lastanimateDuration:0
 		};
 
 		var _methods = {
 			init:function(){
+				if (_instance.useClasses){
+					_vars._$this.addClass(_instance.classSnap);
+				}
 				_vars._resizer = new Resizer({onResize:_methods._handler_resize});
 				_methods._handler_resize(); //Call initially
 
@@ -56,21 +60,22 @@
 				$(window).off("DOMMouseScroll mousewheel wheel", _methods._handler_window_mousewheel);
 
 				_vars._snaps = null;
+				_vars._currentSnapIndex = -1;
 				if (_vars._scrollTimeout){
 					clearTimeout(_vars._scrollTimeout);
 					_vars._scrollTimeout = 0;
 				}
-				if (_vars._wheelTimeout){
-					clearTimeout(_vars._wheelTimeout);
-					_vars._wheelTimeout = 0;
-				}
 				_vars._wheelDir = 0;
-				_vars._currentSnapIndex = -1;
-				_vars._lastAnimateTime = 0;
+				_vars._lastWheelTime = 0;
+				_vars._lastanimateDuration = 0;
+
+				if (_instance.useClasses){
+					_vars._$this.removeClass(_instance.classSnap);
+				}
 			},
 
 			snapClosest:function(){
-				var scrollPosition = document.documentElement.scrollTop;
+				var scrollPosition = _methods._getScrollPosition();
 				var closestIndex = -1;
 				var closestDist = -1;
 				var snaps = _vars._snaps;
@@ -163,7 +168,7 @@
 			isVisible:function($el){
 				var elTop = $el.offset().top;
 				var elBottom = elTop + $el.height();
-				var scrollTop = document.documentElement.scrollTop;
+				var scrollTop = _methods._getScrollPosition();
 				var scrollBottom = scrollTop + window.innerHeight;
 				if ((elTop >= scrollTop && elTop < scrollBottom) || (elBottom > scrollTop && elBottom <= scrollBottom)){
 					return true;
@@ -194,7 +199,7 @@
 				if (_vars._scrollTimeout){
 					clearTimeout(_vars._scrollTimeout);
 				}
-				var animateDelay = (_vars._lastAnimateTime + _instance.animateTime + _instance.animateTimeBuffer) - new Date().getTime();
+				var animateDelay = (_vars._lastanimateDuration + _instance.animateDuration + _instance.animateTimeBuffer) - new Date().getTime();
 				_vars._scrollTimeout = setTimeout(_methods._handler_scroll_timeout, Math.max(_instance.scrollDelay, animateDelay));
 			},
 
@@ -206,37 +211,33 @@
 			},
 
 			_scrollTo:function(top){
-				var scrollPosition = document.documentElement.scrollTop;
+				var scrollPosition = _methods._getScrollPosition();
 				if (scrollPosition == top){
 					return;
 				}
-				_vars._lastAnimateTime = new Date().getTime();
+				_vars._lastanimateDuration = new Date().getTime();
 
 				var $htmlBody = $("html,body");
 				$htmlBody.stop(true);
 				$htmlBody.animate({
 					scrollTop:top
-				}, _instance.animateTime);
+				}, _instance.animateDuration);
 			},
 
 			_handler_window_mousewheel:function(evt){
 				evt.preventDefault();
 
-				if (_vars._wheelTimeout){
-					clearTimeout(_vars._wheelTimeout);
-				}
-				_vars._wheelTimeout = setTimeout(_methods._handler_wheel_timeout, _instance.wheelDelay);
-
 				var delta = Math.max(-1, Math.min(1, (evt.originalEvent.deltaY || evt.originalEvent.wheelDelta || -evt.originalEvent.detail)));
 				_vars._wheelDir = Math.abs(delta) / delta;
+				if (new Date().getTime() >= _vars._lastWheelTime + _instance.wheelInterval){
+					_methods._handler_wheel_timeout();
+				}
 
 				return false;
 			},
 
 			_handler_wheel_timeout:function(){
-				clearTimeout(_vars._wheelTimeout);
-				_vars._wheelTimeout = 0;
-
+				_vars._lastWheelTime = new Date().getTime();
 				if (_vars._wheelDir < 0){
 					_instance.snapPrev();
 				} else if (_vars._wheelDir > 0){
@@ -262,6 +263,10 @@
 				} else {
 					_instance.snapIndex(_vars._currentSnapIndex);
 				}
+			},
+
+			_getScrollPosition:function(){
+				return window.scrollY || document.body.scrollTop || document.documentElement.scrollTop;
 			}
 		};
 
