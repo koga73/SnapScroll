@@ -1,6 +1,6 @@
 {
   "name": "snapscroll",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "jQuery plugin which auto-snaps to elements while scrolling",
   "main": "index.js",
   "scripts": {

@@ -1,5 +1,5 @@
 /*
-* SnapScroll v1.1.0 Copyright (c) 2018 AJ Savino
+* SnapScroll v1.2.0 Copyright (c) 2018 AJ Savino
 * https://github.com/koga73/SnapScroll
 * MIT License
 */
@@ -9,32 +9,43 @@
 
 		//Public
 		var defaults = {
-			useClasses:true,
-			classSnap:"snap-scroll",
-			classVisible:"snap-scroll-visible",
-			classActive:"snap-scroll-active",
+			useClasses:true,						//Add classes to elements
+			classSnap:"snap-scroll",				//Class applied to snap point elements
+			classVisible:"snap-scroll-visible",		//Class applied to a snap point element when within the window
+			classActive:"snap-scroll-active",		//Class applied to a snap point element when snapped
 
-			scrollDelay:300,		//ms
-			wheelInterval:450,		//ms
-			animateDuration:250,	//ms
-			animateTimeBuffer:100,	//ms
+			scrollDelay:300,						//Delay between scroll events needed to trigger scroll action
+			wheelInterval:1000,						//Interval used for wheel to trigger scroll action
+			animateDuration:250,					//The amount of time it takes to animate to a snap point
+			animateTimeBuffer:100,					//The amount of time to wait after an animation is complete before scrolling can be triggered
 
-			snapTop:true,
-			snapBottom:true,
-			snaps:[]
+			snapTop:true,							//Snap to the top of page regardless of there being an element
+			snapBottom:true,						//Snap to the bottom of page regardless of there being an element
+			snaps:[],								//Extra snap points not tied to an element
+
+			maxWheelDeviation:100					//Deviation in milliseconds from the average needed to separate wheel events
 		};
 		$.fn.SnapScroll.defaults = defaults;
 
-		var _vars = {
-			_$this:this,
-			_resizer:null,
+		var _consts = {
+			_NUM_WHEEL_EVENT_DELTAS:100				//The number of wheel event deltas to store
+		};
 
-			_snaps:null,
-			_currentSnapIndex:-1,
-			_scrollTimeout:0,
-			_wheelDir:0,
-			_lastWheelTime:0,
-			_lastanimateDuration:0
+		var _vars = {
+			_$this:this,							//jQuery elements
+			_resizer:null,							//Resizer to handle resize events with built in delay
+
+			_snaps:null,							//All snaps including elements, top, bottom, and extras
+			_currentSnapIndex:-1,					//Current index in _snaps
+			_scrollTimeout:0,						//Timeout used between scroll events
+			_lastanimateDuration:0,
+
+			//All of the wheel stuff is to support mouse wheel, touchpad and magic mouse scrolling - all of which come through as wheel events
+			_wheelDir:0,							//Which way the user scrolled -1 | 1
+			_lastWheelTime:0,						//Last time the page wheel action occured
+			_wheelEventDeltas:[],					//Holds the delta times between the last number of _NUM_WHEEL_EVENT_DELTAS wheel events
+			_wheelEventDeltaAvg:0,					//The average wheel event delta time based on data stored in _wheelEventDeltas
+			_lastWheelEventTime:0					//The last time a wheel event occured
 		};
 
 		var _methods = {
@@ -51,13 +62,14 @@
 			},
 
 			destroy:function(){
+				$(document).off("scroll", _methods._handler_document_scroll);
+				$(document).off("keydown", _methods._handler_document_keydown);
+				$(window).off("DOMMouseScroll mousewheel wheel", _methods._handler_window_mousewheel);
+
 				if (_vars._resizer){
 					_vars._resizer.destroy();
 					_vars._resizer = null;
 				}
-				$(document).off("scroll", _methods._handler_document_scroll);
-				$(document).off("keydown", _methods._handler_document_keydown);
-				$(window).off("DOMMouseScroll mousewheel wheel", _methods._handler_window_mousewheel);
 
 				_vars._snaps = null;
 				_vars._currentSnapIndex = -1;
@@ -65,9 +77,13 @@
 					clearTimeout(_vars._scrollTimeout);
 					_vars._scrollTimeout = 0;
 				}
+				_vars._lastanimateDuration = 0;
+
 				_vars._wheelDir = 0;
 				_vars._lastWheelTime = 0;
-				_vars._lastanimateDuration = 0;
+				_vars._wheelEventDeltas.splice(0, _vars._wheelEventDeltas.length);
+				_vars._wheelEventDeltaAvg = 0;
+				_vars._lastWheelEventTime = 0;
 
 				if (_instance.useClasses){
 					_vars._$this.removeClass(_instance.classSnap);
@@ -224,12 +240,40 @@
 				}, _instance.animateDuration);
 			},
 
+			//Wheel events have "inertia" in that touchpad / magic mouse will continue to fire events after the user has stopped
 			_handler_window_mousewheel:function(evt){
 				evt.preventDefault();
 
+				var shouldScroll = false;
+				var now = new Date().getTime();
+				if (_vars._lastWheelEventTime){
+					//Get event delta and add to array
+					var eventDelta = now - _vars._lastWheelEventTime;
+					var wheelEventDeltasLen = _vars._wheelEventDeltas.length;
+					if (wheelEventDeltasLen == _consts._NUM_WHEEL_EVENT_DELTAS){
+						_vars._wheelEventDeltas.shift(); //Remove oldest
+					}
+					_vars._wheelEventDeltas.push(eventDelta); //Add newest
+					wheelEventDeltasLen++;
+
+					//Get array average delta
+					_vars._wheelEventDeltaAvg = (_vars._wheelEventDeltaAvg * (wheelEventDeltasLen - 1) + eventDelta) / wheelEventDeltasLen;
+
+					//Get deviation from average and compare to max
+					var deviation = Math.abs(eventDelta - _vars._wheelEventDeltaAvg);
+					if (deviation >= _instance.maxWheelDeviation){
+						_vars._wheelEventDeltas.splice(0, wheelEventDeltasLen); //Wipe array
+						shouldScroll = true;
+					}
+				} else {
+					shouldScroll = true;
+				}
+				_vars._lastWheelEventTime = now;
+
+				//Store scroll direction and call action if past interval
 				var delta = Math.max(-1, Math.min(1, (evt.originalEvent.deltaY || evt.originalEvent.wheelDelta || -evt.originalEvent.detail)));
 				_vars._wheelDir = Math.abs(delta) / delta;
-				if (new Date().getTime() >= _vars._lastWheelTime + _instance.wheelInterval){
+				if (shouldScroll || new Date().getTime() >= _vars._lastWheelTime + _instance.wheelInterval){
 					_methods._handler_wheel_timeout();
 				}
 
