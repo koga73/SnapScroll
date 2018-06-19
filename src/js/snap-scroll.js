@@ -1,5 +1,5 @@
 /*
-* SnapScroll v1.2.0 Copyright (c) 2018 AJ Savino
+* SnapScroll v1.2.1 Copyright (c) 2018 AJ Savino
 * https://github.com/koga73/SnapScroll
 * MIT License
 */
@@ -9,10 +9,11 @@
 
 		//Public
 		var defaults = {
-			useClasses:true,						//Add classes to elements
+			classes:true,							//Add classes to elements
 			classSnap:"snap-scroll",				//Class applied to snap point elements
 			classVisible:"snap-scroll-visible",		//Class applied to a snap point element when within the window
 			classActive:"snap-scroll-active",		//Class applied to a snap point element when snapped
+			hashes:false,							//Use element id in hash
 
 			scrollDelay:300,						//Delay between scroll events needed to trigger scroll action
 			wheelInterval:1000,						//Interval used for wheel to trigger scroll action
@@ -50,7 +51,7 @@
 
 		var _methods = {
 			init:function(){
-				if (_instance.useClasses){
+				if (_instance.classes){
 					_vars._$this.addClass(_instance.classSnap);
 				}
 				_vars._resizer = new Resizer({onResize:_methods._handler_resize});
@@ -85,7 +86,7 @@
 				_vars._wheelEventDeltaAvg = 0;
 				_vars._lastWheelEventTime = 0;
 
-				if (_instance.useClasses){
+				if (_instance.classes){
 					_vars._$this.removeClass(_instance.classSnap);
 				}
 			},
@@ -120,23 +121,36 @@
 				var snap = _vars._snaps[index];
 
 				//Eval active/visible classes
-				if (_instance.useClasses){
-					var $active = null;
-					_vars._$this.each(function(){
-						var $el = $(this);
+				var $active = null;
+				_vars._$this.each(function(){
+					var $el = $(this);
+					if (_instance.classes){
 						$el.removeClass(_instance.classActive);
-						if ($active){ //First match
-							return;
-						}
-						if ($el.offset().top == snap){
-							$active = $el;
-						}
-					});
-					if ($active){
+					}
+					if ($active){ //First match
+						return;
+					}
+					if ($el.offset().top == snap){
+						$active = $el;
+					}
+				});
+				if ($active){
+					if (_instance.classes){
 						$active.addClass(_instance.classActive);
 					}
-					_methods._evalVisibility();
 				}
+				if (_instance.hashes){
+					var hash = "";
+					if ($active){
+						var activeId = $active.attr("id");
+						if (activeId){
+							hash = "#" + activeId;
+						}
+					}
+					//TODO: Take query strings into account
+					history.replaceState({}, window.location.href, window.location.href.replace(/#.*$/, "") + hash);
+				}
+				_methods._evalVisibility();
 
 				//Animate
 				_methods._scrollTo(snap);
@@ -193,6 +207,9 @@
 			},
 
 			_evalVisibility:function(){
+				if (!_instance.classes){
+					return;
+				}
 				//Toggle visibility class
 				_vars._$this.each(function(){
 					var $el = $(this);
@@ -209,7 +226,7 @@
 			},
 
 			_handler_document_scroll:function(evt){
-				if (_instance.useClasses){
+				if (_instance.classes){
 					_methods._evalVisibility();
 				}
 				if (_vars._scrollTimeout){
