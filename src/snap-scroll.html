@@ -53,17 +53,31 @@
 	<body>
 		<header><span>HEADER</span></header>
 		<div>
-			<section><span>Section 1</span></section>
-			<section><span>Section 2</span></section>
-			<section><span>Section 3</span></section>
+			<section id="section1"><span>Section 1</span></section>
+			<section id="section2"><span>Section 2</span></section>
+			<section id="section3"><span>Section 3</span></section>
 		</div>
 		<footer><span>FOOTER</span></footer>
 
 		<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
 		<script src="js/snap-scroll.js"></script>
 		<script>
-			var snapScroll = $("header, section, footer").SnapScroll();
+			var snapScroll = $("header, section, footer").SnapScroll({
+				hashes:true
+			});
 			console.log(snapScroll);
+
+			//Listen for active element change
+			//You could listen globally like $(document)
+			$("header").on(snapScroll.eventChangeActive, function(evt, newActive){
+				console.log(evt, newActive);
+			});
+
+			//Listen for visible element change
+			//You could listen on a specific element like $("header")
+			$(document).on(snapScroll.eventChangeVisible, function(evt, visibleList){
+				console.log(evt, visibleList.data);
+			});
 		</script>
 	</body>
 </html>

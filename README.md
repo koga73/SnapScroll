@@ -1,5 +1,5 @@
 # SnapScroll
-Javascript library to snap to page sections while scrolling and with mouse wheel
+jQuery plugin which auto-snaps to elements while scrolling
 
 ```html
 <header>HEADER</header>

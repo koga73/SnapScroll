@@ -1,5 +1,5 @@
 /*
-* SnapScroll v1.2.0 Copyright (c) 2018 AJ Savino
+* SnapScroll v1.3.0 Copyright (c) 2018 AJ Savino
 * https://github.com/koga73/SnapScroll
 * MIT License
 */
@@ -9,21 +9,26 @@
 
 		//Public
 		var defaults = {
-			useClasses:true,						//Add classes to elements
-			classSnap:"snap-scroll",				//Class applied to snap point elements
-			classVisible:"snap-scroll-visible",		//Class applied to a snap point element when within the window
-			classActive:"snap-scroll-active",		//Class applied to a snap point element when snapped
+			events:true,										//Fire events
+			eventChangeActive:"snapscroll_change-active",		//Fires when snap point element when snapped
+			eventChangeVisible:"snapscroll_change-visible",		//Fires when snap point element is within the window
 
-			scrollDelay:300,						//Delay between scroll events needed to trigger scroll action
-			wheelInterval:1000,						//Interval used for wheel to trigger scroll action
-			animateDuration:250,					//The amount of time it takes to animate to a snap point
-			animateTimeBuffer:100,					//The amount of time to wait after an animation is complete before scrolling can be triggered
+			classes:true,										//Add classes to elements
+			classSnap:"snap-scroll",							//Class applied to snap point elements
+			classVisible:"snap-scroll-visible",					//Class applied to a snap point element when within the window
+			classActive:"snap-scroll-active",					//Class applied to a snap point element when snapped
+			hashes:false,										//Use element id in hash
 
-			snapTop:true,							//Snap to the top of page regardless of there being an element
-			snapBottom:true,						//Snap to the bottom of page regardless of there being an element
-			snaps:[],								//Extra snap points not tied to an element
+			scrollDelay:300,									//Delay between scroll events needed to trigger scroll action
+			wheelInterval:1000,									//Interval used for wheel to trigger scroll action
+			animateDuration:250,								//The amount of time it takes to animate to a snap point
+			animateTimeBuffer:100,								//The amount of time to wait after an animation is complete before scrolling can be triggered
 
-			maxWheelDeviation:100					//Deviation in milliseconds from the average needed to separate wheel events
+			snapTop:true,										//Snap to the top of page regardless of there being an element
+			snapBottom:true,									//Snap to the bottom of page regardless of there being an element
+			snaps:[],											//Extra snap points not tied to an element
+
+			maxWheelDeviation:100								//Deviation in milliseconds from the average needed to separate wheel events
 		};
 		$.fn.SnapScroll.defaults = defaults;
 
@@ -50,7 +55,7 @@
 
 		var _methods = {
 			init:function(){
-				if (_instance.useClasses){
+				if (_instance.classes){
 					_vars._$this.addClass(_instance.classSnap);
 				}
 				_vars._resizer = new Resizer({onResize:_methods._handler_resize});
@@ -85,7 +90,7 @@
 				_vars._wheelEventDeltaAvg = 0;
 				_vars._lastWheelEventTime = 0;
 
-				if (_instance.useClasses){
+				if (_instance.classes){
 					_vars._$this.removeClass(_instance.classSnap);
 				}
 			},
@@ -120,23 +125,47 @@
 				var snap = _vars._snaps[index];
 
 				//Eval active/visible classes
-				if (_instance.useClasses){
-					var $active = null;
-					_vars._$this.each(function(){
-						var $el = $(this);
-						$el.removeClass(_instance.classActive);
-						if ($active){ //First match
-							return;
-						}
-						if ($el.offset().top == snap){
-							$active = $el;
-						}
-					});
-					if ($active){
-						$active.addClass(_instance.classActive);
+				var $dirtyEls = [];
+				var $active = null;
+				_vars._$this.each(function(){
+					var $el = $(this);
+					if (!$active && $el.offset().top == snap){ //First match
+						$active = $el;
 					}
-					_methods._evalVisibility();
+					if (_instance.classes){
+						if ($active == $el){
+							if (!$el.hasClass(_instance.classActive)){
+								$el.addClass(_instance.classActive);
+								$dirtyEls.push($el);
+							}
+						} else {
+							if ($el.hasClass(_instance.classActive)){
+								$el.removeClass(_instance.classActive);
+								$dirtyEls.push($el);
+							}
+						}
+					}
+				});
+				if (_instance.events){
+					var dirtyElsLen = $dirtyEls.length;
+					if (dirtyElsLen){
+						for (var i = 0; i < dirtyElsLen; i++){
+							$dirtyEls[i].trigger(_instance.eventChangeActive, $active);
+						}
+					}
 				}
+				if (_instance.hashes){
+					var hash = "";
+					if ($active){
+						var activeId = $active.attr("id");
+						if (activeId){
+							hash = "#" + activeId;
+						}
+					}
+					//TODO: Take query strings into account
+					history.replaceState({}, window.location.href, window.location.href.replace(/#.*$/, "") + hash);
+				}
+				_methods._evalVisibility();
 
 				//Animate
 				_methods._scrollTo(snap);
@@ -193,15 +222,33 @@
 			},
 
 			_evalVisibility:function(){
+				if (!_instance.classes){
+					return;
+				}
+				var $dirtyEls = [];
+				var $visibleEls = [];
 				//Toggle visibility class
 				_vars._$this.each(function(){
 					var $el = $(this);
 					if (_instance.isVisible($el)){
-						$el.addClass(_instance.classVisible);
+						if (!$el.hasClass(_instance.classVisible)){
+							$el.addClass(_instance.classVisible);
+							$dirtyEls.push($el);
+						}
+						$visibleEls.push($el);
 					} else {
-						$el.removeClass(_instance.classVisible);
+						if ($el.hasClass(_instance.classVisible)){
+							$el.removeClass(_instance.classVisible);
+							$dirtyEls.push($el);
+						}
 					}
 				});
+				if (_instance.events){
+					var dirtyElsLen = $dirtyEls.length;
+					for (var i = 0; i < dirtyElsLen; i++){
+						$dirtyEls[i].trigger(_instance.eventChangeVisible, {data:$visibleEls});
+					}
+				}
 			},
 
 			_sortNumeric:function(a, b){
@@ -209,7 +256,7 @@
 			},
 
 			_handler_document_scroll:function(evt){
-				if (_instance.useClasses){
+				if (_instance.classes){
 					_methods._evalVisibility();
 				}
 				if (_vars._scrollTimeout){
